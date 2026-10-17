@@ -9,14 +9,22 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "cesium": "^1.146.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "autoprefixer": "^10.6.1",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.58.0",
     "next": "16.4.0",
+    "postcss": "^8.5.30",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "resium": "^1.27.0"
+    "react-globe.gl": "^2.38.0",
+    "react-leaflet": "^5.0.0",
+    "recharts": "^3.10.1",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
