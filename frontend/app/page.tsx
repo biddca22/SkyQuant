@@ -1,31 +1,63 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import dynamic from "next/dynamic";
-import { Plane, Hash, Mountain, Gauge, MapPin, Wind, Zap, Timer, Play, Pause, Radar, Layers, Activity, TrendingUp } from "lucide-react";
+import { 
+  Plane, Hash, Mountain, Gauge, MapPin, Wind, Zap, 
+  Timer, Clock, Radio, Globe, Play, Pause, Search, 
+  Radar, PlaneTakeoff, PlaneLanding 
+} from "lucide-react";
+import Map from "./components/Map";
 import FuelStreamgraph from "./components/FuelStreamgraph";
 import TrajectoryProfile from "./components/TrajectoryProfile";
 import AviationEconomics from "./components/AviationEconomics";
 
-const Map = dynamic(() => import("./components/Map"), { ssr: false });
+const formatLocalTime = (utcStr: string) => {
+  if (!utcStr || utcStr === "Unknown" || utcStr === "N/A") return "N/A";
+  try {
+    let safeStr = utcStr.replace(" ", "T");
+    if (!safeStr.endsWith("Z") && !safeStr.includes("+")) safeStr += "Z";
+    const d = new Date(safeStr);
+    if (isNaN(d.getTime())) return "N/A";
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return "N/A";
+  }
+};
 
 export default function Home() {
+  const [mounted, setMounted] = useState(false);
   const [callsign, setCallsign] = useState("");
   const [loading, setLoading] = useState(false);
-  const [scannerLoading, setScannerLoading] = useState(false);
   const [flightData, setFlightData] = useState<any>(null);
   const [error, setError] = useState("");
   const [isLive, setIsLive] = useState(true);
   const [activeTab, setActiveTab] = useState<"map" | "fuel" | "trajectory" | "economics">("map");
+  const [isMetric, setIsMetric] = useState(true);
+  const [cooldownTime, setCooldownTime] = useState(0);
+
+  // Prevents SSR Hydration mismatches caused by browser extensions
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (cooldownTime > 0) {
+      timer = setInterval(() => setCooldownTime(prev => prev - 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [cooldownTime]);
 
   const searchFlight = async (searchCallsign: string) => {
-    setLoading(true);
-    setError("");
-    setIsLive(true);
+    if (!searchCallsign.trim() || cooldownTime > 0) return;
+    
+    setLoading(true); setError(""); setIsLive(true);
+    setCooldownTime(30);
+    
     try {
       const response = await fetch(`http://127.0.0.1:8000/api/flight/${searchCallsign}`);
-      if (!response.ok) throw new Error("Flight not found in live global airspace.");
       const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Flight not located.");
       setFlightData(data);
       setCallsign(searchCallsign);
     } catch (err: any) {
@@ -36,22 +68,28 @@ export default function Home() {
   };
 
   const scanAirspace = async () => {
-    setScannerLoading(true);
-    setError("");
+    if (cooldownTime > 0) return;
+    
+    setLoading(true); setError(""); 
+    setCooldownTime(30);
+    
     try {
       const res = await fetch(`http://127.0.0.1:8000/api/random-flight`);
-      if (!res.ok) throw new Error("Airspace scan failed.");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Scanner unavailable.");
       setCallsign(data.callsign);
-      await searchFlight(data.callsign);
+      
+      const response = await fetch(`http://127.0.0.1:8000/api/flight/${data.callsign}`);
+      const flightRes = await response.json();
+      if (!response.ok) throw new Error(flightRes.detail || "Flight not located.");
+      setFlightData(flightRes);
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setScannerLoading(false);
+      setLoading(false);
     }
   };
 
-  // 10-Second Telemetry Polling (Unlimited FlightRadar24 scraper)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isLive && flightData) {
@@ -60,220 +98,169 @@ export default function Home() {
           const res = await fetch(`http://127.0.0.1:8000/api/telemetry/${flightData.flight.callsign}`);
           if (res.ok) {
             const freshData = await res.json();
-            setFlightData((prev: any) => ({
-              ...prev,
-              flight: freshData.flight,
-              fuel_metrics: freshData.fuel_metrics,
-            }));
+            setFlightData((prev: any) => ({ ...prev, flight: freshData.flight, fuel_metrics: freshData.fuel_metrics }));
           }
         } catch (e) {
           console.error("Telemetry sync failed", e);
         }
-      }, 10000); // 10 seconds
+      }, 10000); 
     }
     return () => clearInterval(interval);
   }, [isLive, flightData]);
 
+  if (!mounted) {
+    return <main className="h-screen w-screen bg-[#020202]" suppressHydrationWarning />;
+  }
+
+  const isControlsDisabled = loading || cooldownTime > 0;
+
   return (
-    <main className="h-screen w-screen bg-[#000000] text-gray-300 overflow-hidden flex flex-col p-3 font-sans selection:bg-fuchsia-500/30">
+    <main className="h-screen w-screen bg-[#020202] text-gray-300 overflow-hidden flex flex-col px-6 py-4 font-sans selection:bg-cyan-500/30 relative">
       
-      {/* Header Row */}
-      <header className="flex justify-between items-center mb-2 px-2 h-14">
-        <div className="flex flex-col">
-          <h1 className="text-3xl text-white tracking-wide font-brand drop-shadow-[0_0_12px_rgba(255,255,255,0.25)]">
-            SkyQuant
-          </h1>
-          <p className="text-[0.65rem] text-gray-500 tracking-[0.25em] font-brand uppercase">
-            DEVELOPED BY CARLOS BIDDLE MIRALLES
-          </p>
-        </div>
+      <div className="fixed top-[-10%] left-[20%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
+      <div className="fixed bottom-[-10%] right-[20%] w-[600px] h-[600px] bg-cyan-600/5 rounded-full blur-[150px] pointer-events-none z-0"></div>
 
-        {/* Prominent High-Visibility Airline Container */}
-        {flightData?.route?.logo_url && (
-          <div className="h-12 px-4 bg-[#0a0a0c] border border-[#222] rounded-xl flex items-center gap-3 shadow-[0_0_20px_rgba(0,0,0,0.8)]">
-            <div className="bg-white/95 px-2 py-1 rounded-md flex items-center justify-center">
-              <img 
-                src={flightData.route.logo_url} 
-                alt="Airline Logo" 
-                className="h-6 max-w-[120px] object-contain" 
-              />
-            </div>
-            <span className="text-xs font-bold text-white tracking-wider uppercase font-mono">
-              {flightData.route.airline}
-            </span>
-          </div>
-        )}
-      </header>
-
-      {/* Main 3-Column Content Body (Fits 100% at 100% zoom) */}
-      <div className="flex-1 flex gap-3 min-h-0">
+      <div className="flex-1 flex gap-6 min-h-0 relative z-10">
         
-        {/* Left Column (Narrower: 20%) */}
-        <div className="w-[20%] flex flex-col gap-2.5">
-          {/* Search Box */}
-          <div className="bg-[#08080a] border border-[#1a1a20] rounded-xl p-3 shadow-lg">
-            <form onSubmit={(e) => { e.preventDefault(); searchFlight(callsign); }} className="flex flex-col gap-2.5">
+        <div className="w-[18%] flex flex-col gap-5 pt-2">
+          <div className="flex flex-col items-stretch w-max mb-3">
+            <h1 className="text-[3rem] text-white font-iceberg leading-none tracking-wide m-0 p-0 drop-shadow-md pb-2">
+              SkyQuant
+            </h1>
+            <div className="flex justify-between w-full text-[0.60rem] text-gray-400 px-0.5 tracking-widest" style={{ fontFamily: "'Century Schoolbook', Georgia, serif" }}>
+              <span>Developed</span><span>by</span><span>Carlos</span><span>Biddle</span><span>Miralles</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 w-full">
+            <form onSubmit={(e) => { e.preventDefault(); searchFlight(callsign); }} className="flex flex-col gap-3">
               <input
                 type="text"
                 value={callsign}
                 onChange={(e) => setCallsign(e.target.value)}
-                placeholder="CALLSIGN (E.G., CLX6225)"
-                className="w-full bg-[#000000] border border-[#26262e] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-violet-500 transition-colors uppercase font-mono"
+                placeholder="Callsign..."
+                disabled={isControlsDisabled}
+                className="w-full bg-white/[0.03] border border-white/[0.05] rounded-xl px-4 py-2.5 text-[0.80rem] text-white focus:outline-none focus:bg-white/[0.06] transition-colors uppercase font-mono disabled:opacity-50"
                 required
               />
               <button 
                 type="submit" 
-                disabled={loading}
-                className="bg-[#121216] hover:bg-[#1a1a20] border border-[#2c2c36] text-white text-[0.75rem] font-bold py-1.5 px-3 rounded-lg transition-all tracking-wider disabled:opacity-50"
+                disabled={isControlsDisabled} 
+                className="bg-blue-600 hover:bg-blue-500 text-white text-[0.75rem] font-bold py-2.5 px-4 rounded-xl transition-all tracking-wider disabled:opacity-50 flex justify-center items-center gap-2 shadow-[0_0_15px_rgba(37,99,235,0.3)] disabled:shadow-none"
               >
-                {loading ? "SEARCHING..." : "ANALYSE FLIGHT"}
+                {loading ? "SEARCHING..." : cooldownTime > 0 ? `API RECHARGING (${cooldownTime}s)` : <><Search size={14} /> Analyse Flight</>}
               </button>
             </form>
-            {error && <p className="text-red-500 mt-2 text-[0.65rem] uppercase tracking-wider">{error}</p>}
+            {error && <p className="text-red-400 bg-red-400/10 px-3 py-2 rounded-lg mt-1 text-[0.60rem] uppercase tracking-wider">{error}</p>}
           </div>
 
-          {/* Airspace Scanner */}
-          <div className="bg-[#08080a] border border-[#1a1a20] rounded-xl p-4 flex-1 flex flex-col items-center justify-center text-center relative overflow-hidden group shadow-lg">
-            <div className="absolute inset-0 bg-fuchsia-600/5 group-hover:bg-fuchsia-600/10 transition-colors"></div>
-            <Radar size={40} className={`text-fuchsia-500 mb-3 ${scannerLoading ? 'animate-spin' : ''}`} />
-            <h2 className="text-[0.80rem] font-bold text-white tracking-widest uppercase mb-1.5">Live Radar Link</h2>
-            <p className="text-[0.68rem] text-gray-500 mb-4 px-2 leading-relaxed">
-              Tap into live transponder telemetry to intercept a cruising commercial flight.
-            </p>
+          <div className="flex flex-col gap-2 w-full mt-2">
             <button 
               onClick={scanAirspace} 
-              disabled={scannerLoading || loading}
-              className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-[0.75rem] font-bold py-2 px-4 rounded-lg transition-all shadow-[0_0_15px_rgba(139,92,246,0.3)] disabled:opacity-50 relative z-10 w-full tracking-wider uppercase"
+              disabled={isControlsDisabled} 
+              className="group flex items-center justify-center gap-3 w-full bg-transparent border border-cyan-600/40 hover:border-cyan-400 hover:bg-cyan-500/10 py-3 rounded-xl transition-all disabled:opacity-30 disabled:hover:border-cyan-600/40 disabled:hover:bg-transparent shadow-[0_0_10px_rgba(6,182,212,0.1)] disabled:shadow-none"
             >
-              {scannerLoading ? "SCANNING..." : "SCAN LIVE AIRSPACE"}
+              <Radar size={18} className={`text-cyan-400 opacity-90 group-hover:opacity-100 ${loading ? 'animate-spin' : ''}`} />
+              <span className="text-[0.70rem] font-bold text-cyan-300 tracking-wider">
+                {loading ? "LOCKING ON..." : cooldownTime > 0 ? `SYSTEM COOLING (${cooldownTime}s)` : "Discover Live Flight"}
+              </span>
             </button>
           </div>
         </div>
 
-        {/* Centre Column: Glassmorphic Tabs + Canvas (Spacious: 51%) */}
-        <div className="w-[51%] flex flex-col gap-2">
-          
-          {/* Glassmorphic Navigation Bar */}
-          <div className="flex justify-between items-center bg-[#09090d]/80 backdrop-blur-xl border border-[#1f1f28] rounded-xl px-3 py-1.5 shadow-md">
-            <div className="flex items-center gap-1.5">
-              <button 
-                onClick={() => setActiveTab("map")}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[0.72rem] font-bold tracking-wider uppercase transition-all ${activeTab === 'map' ? 'bg-fuchsia-600 text-white shadow-[0_0_12px_rgba(217,70,239,0.4)]' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-              >
-                <Layers size={12}/> Map
+        <div className="w-[52%] flex flex-col">
+          <div className="flex items-center justify-center gap-10 px-8 py-3.5 mb-2 bg-transparent">
+            {[{ id: "map", label: "Map" }, { id: "fuel", label: "Fuel Dynamics" }, { id: "trajectory", label: "Trajectory" }, { id: "economics", label: "Economics & ESG" }].map((tab) => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`relative text-[0.70rem] font-bold tracking-[0.15em] uppercase transition-all duration-300 ${activeTab === tab.id ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}>
+                {tab.label}
+                {activeTab === tab.id && <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-[2px] bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.8)]"></span>}
               </button>
-              <button 
-                onClick={() => setActiveTab("fuel")}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[0.72rem] font-bold tracking-wider uppercase transition-all ${activeTab === 'fuel' ? 'bg-fuchsia-600 text-white shadow-[0_0_12px_rgba(217,70,239,0.4)]' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-              >
-                <Activity size={12}/> Fuel Dynamics
-              </button>
-              <button 
-                onClick={() => setActiveTab("trajectory")}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[0.72rem] font-bold tracking-wider uppercase transition-all ${activeTab === 'trajectory' ? 'bg-fuchsia-600 text-white shadow-[0_0_12px_rgba(217,70,239,0.4)]' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-              >
-                <TrendingUp size={12}/> Trajectory Profile
-              </button>
-              <button 
-                onClick={() => setActiveTab("economics")}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[0.72rem] font-bold tracking-wider uppercase transition-all ${activeTab === 'economics' ? 'bg-fuchsia-600 text-white shadow-[0_0_12px_rgba(217,70,239,0.4)]' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-              >
-                <Zap size={12}/> Economics & ESG
-              </button>
-            </div>
-
-            {flightData && (
-              <span className="text-[0.65rem] font-mono text-fuchsia-400 border border-fuchsia-500/20 px-2 py-0.5 rounded-md bg-fuchsia-500/5">
-                {flightData.flight.callsign} • LIVE
-              </span>
-            )}
+            ))}
           </div>
 
-          {/* Central Interactive Panel */}
-          <div className="flex-1 rounded-2xl relative overflow-hidden flex flex-col min-h-0">
+          <div className="flex-1 rounded-2xl relative overflow-hidden flex flex-col min-h-0 bg-transparent border border-white/[0.05] shadow-2xl">
             {flightData ? (
               <>
                 {activeTab === "map" && (
                   <>
                     <Map latitude={flightData.flight.latitude} longitude={flightData.flight.longitude} routeData={flightData.route} />
-                    <button 
-                      onClick={() => setIsLive(!isLive)}
-                      className={`absolute bottom-3 left-3 z-[400] flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.68rem] font-bold tracking-wider uppercase backdrop-blur-md border transition-all ${isLive ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20'}`}
-                    >
-                      {isLive ? <><Play size={10} className="animate-pulse"/> Live Radar</> : <><Pause size={10} /> Paused</>}
+                    <button onClick={() => setIsLive(!isLive)} className={`absolute bottom-4 left-4 z-[400] flex items-center gap-2 px-4 py-1.5 rounded-full text-[0.65rem] font-bold tracking-wider uppercase backdrop-blur-xl transition-all shadow-lg border border-white/5 ${isLive ? 'bg-cyan-500/20 text-cyan-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                      {isLive ? <><Play size={10} className="animate-pulse"/> Live</> : <><Pause size={10} /> Paused</>}
                     </button>
                   </>
                 )}
-
-                {activeTab === "fuel" && (
-                  <FuelStreamgraph telemetry={flightData.flight} fuelMetrics={flightData.fuel_metrics} />
-                )}
-
-                {activeTab === "trajectory" && (
-                  <TrajectoryProfile telemetry={flightData.flight} routeData={flightData.route} />
-                )}
-
-                {activeTab === "economics" && (
-                  <AviationEconomics telemetry={flightData.flight} fuelMetrics={flightData.fuel_metrics} />
-                )}
+                {activeTab === "fuel" && <FuelStreamgraph telemetry={flightData.flight} fuelMetrics={flightData.fuel_metrics} />}
+                {activeTab === "trajectory" && <TrajectoryProfile telemetry={flightData.flight} isMetric={isMetric} />}
+                {activeTab === "economics" && <AviationEconomics telemetry={flightData.flight} fuelMetrics={flightData.fuel_metrics} />}
               </>
             ) : (
-              <div className="flex-1 bg-[#050507] border border-[#1a1a20] rounded-2xl flex items-center justify-center text-gray-600 text-[0.75rem] uppercase tracking-widest">
+              <div className="flex-1 flex items-center justify-center text-gray-700 text-[0.70rem] uppercase tracking-widest">
                 <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 border border-[#222] border-t-fuchsia-500 rounded-full animate-spin mb-3"></div>
-                  <p>Awaiting Radar Intercept</p>
+                  <div className="w-6 h-6 border-2 border-transparent border-t-cyan-600 rounded-full animate-spin mb-3"></div>
+                  <p>AWAITING INTERCEPT</p>
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Right Column: 3 Cards Perfectly Fitted Vertically (Wider: 29%) */}
-        <div className="w-[29%] flex flex-col gap-2.5 overflow-hidden">
+        <div className="w-[30%] flex flex-col gap-3 overflow-hidden pt-2">
+          <div className="flex items-center justify-end gap-5 h-16 w-full pr-1 mb-2">
+            <div className="flex flex-col gap-2">
+              <button className="bg-transparent border border-white/10 hover:border-white/20 text-cyan-400 text-[0.55rem] font-bold px-3 py-1 rounded-full transition-all uppercase tracking-widest text-center">EN / FR / ES</button>
+              <button onClick={() => setIsMetric(!isMetric)} className="bg-transparent border border-white/10 hover:border-white/20 text-[0.55rem] font-bold px-3 py-1 rounded-full transition-all uppercase tracking-widest flex items-center justify-between gap-2">
+                <span className={isMetric ? "text-cyan-400 drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]" : "text-gray-600"}>METRIC</span> 
+                <span className={!isMetric ? "text-cyan-400 drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]" : "text-gray-600"}>IMPERIAL</span>
+              </button>
+            </div>
+            {flightData?.route?.logo_url ? (
+              <div className="flex justify-center items-center bg-white/[0.02] backdrop-blur-xl px-4 py-2 rounded-xl border border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)] h-[46px] w-[140px]">
+                <img src={flightData.route.logo_url} alt="Airline Logo" className="h-full w-full object-contain drop-shadow-md opacity-90" />
+              </div>
+            ) : <div className="h-[46px] w-[140px]"></div>}
+          </div>
+
           {flightData && (
-            <>
-              {/* Telemetry Card */}
-              <div className="bg-[#08080a] border border-[#1a1a20] rounded-xl p-2.5 flex-1 flex flex-col justify-between shadow-lg">
-                <h2 className="text-[0.72rem] font-bold text-white tracking-widest uppercase flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-400 animate-pulse"></span> Live Telemetry
+            <div className="flex-1 flex flex-col justify-between pb-2 pr-1">
+              <div className="flex-1 flex flex-col justify-center">
+                <h2 className="text-[0.60rem] font-bold text-gray-600 tracking-widest uppercase mb-1 flex items-center gap-2 pl-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.8)]"></span> Telemetry
                 </h2>
-                <div className="space-y-1">
-                  <DataRow icon={<Plane size={11}/>} iconColor="text-fuchsia-400" label="Callsign" value={flightData.flight.callsign} />
-                  <DataRow icon={<Hash size={11}/>} iconColor="text-gray-400" label="ICAO24 Hex" value={flightData.flight.icao24} />
-                  <DataRow icon={<Mountain size={11}/>} iconColor="text-blue-400" label="Altitude" value={`${flightData.flight.altitude_m.toLocaleString()} m`} />
-                  <DataRow icon={<Gauge size={11}/>} iconColor="text-emerald-400" label="Velocity" value={`${flightData.flight.velocity_ms.toFixed(1)} m/s`} />
-                  <DataRow icon={<MapPin size={11}/>} iconColor="text-orange-400" label="Coordinates" value={`${flightData.flight.latitude.toFixed(3)}, ${flightData.flight.longitude.toFixed(3)}`} />
+                <div className="space-y-1.5">
+                  <DataRow icon={<Radio size={13}/>} iconColor="text-cyan-400" label="Callsign" value={flightData.flight.callsign} />
+                  <DataRow icon={<Hash size={13}/>} iconColor="text-purple-400" label="ICAO24" value={flightData.flight.icao24} />
+                  <DataRow icon={<Mountain size={13}/>} iconColor="text-sky-400" label="Altitude" value={isMetric ? `${Math.round(flightData.flight.altitude_m).toLocaleString()} m` : `${Math.round(flightData.flight.altitude_m / 0.3048).toLocaleString()} ft`} />
+                  <DataRow icon={<Gauge size={13}/>} iconColor="text-teal-400" label="Velocity" value={isMetric ? `${flightData.flight.velocity_ms.toFixed(1)} m/s` : `${(flightData.flight.velocity_ms * 1.94384).toFixed(1)} kts`} />
+                  <DataRow icon={<MapPin size={13}/>} iconColor="text-rose-400" label="Location" value={`${flightData.flight.latitude.toFixed(2)}, ${flightData.flight.longitude.toFixed(2)}`} />
                 </div>
               </div>
 
-              {/* Route Card (Spacious width prevents airport name clipping) */}
-              <div className="bg-[#08080a] border border-[#1a1a20] rounded-xl p-2.5 flex-1 flex flex-col justify-between shadow-lg">
-                <h2 className="text-[0.72rem] font-bold text-white tracking-widest uppercase flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span> Route Matrix
+              <div className="flex-1 flex flex-col justify-center border-t border-white/[0.05] pt-1 mt-2">
+                <h2 className="text-[0.60rem] font-bold text-gray-600 tracking-widest uppercase mb-1 flex items-center gap-2 pl-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span> Routing
                 </h2>
-                <div className="space-y-1">
-                  <DataRow icon={<MapPin size={11}/>} iconColor="text-blue-400" label="Origin" value={flightData.route.origin} />
-                  <DataRow icon={<MapPin size={11}/>} iconColor="text-emerald-400" label="Destination" value={flightData.route.destination} />
-                  <DataRow icon={<Plane size={11}/>} iconColor="text-violet-400" label="Operator" value={flightData.route.airline} />
-                  <DataRow icon={<Timer size={11}/>} iconColor="text-gray-400" label="Dep (UTC)" value={flightData.route.departure_time.split(" ")[1] || "Unknown"} />
+                <div className="space-y-1.5">
+                  <RouteRow label="Origin" iata={flightData.route.origin_iata} location={flightData.route.origin} icon={<PlaneTakeoff size={13}/>} color="text-blue-500" />
+                  <RouteRow label="Destination" iata={flightData.route.dest_iata} location={flightData.route.destination} icon={<PlaneLanding size={13}/>} color="text-emerald-500" />
+                  <DataRow icon={<Globe size={13}/>} iconColor="text-indigo-400" label="Operator" value={flightData.route.airline} />
+                  <DataRow icon={<Timer size={13}/>} iconColor="text-amber-400" label="Departure" value={formatLocalTime(flightData.route.departure_time)} />
+                  <DataRow icon={<Clock size={13}/>} iconColor="text-orange-400" label="Arrival" value={formatLocalTime(flightData.route.arrival_time)} />
                 </div>
               </div>
 
-              {/* OpenAP Physics Card */}
-              <div className="bg-[#08080a] border border-[#1a1a20] rounded-xl p-2.5 flex-1 flex flex-col justify-between shadow-lg">
-                <h2 className="text-[0.72rem] font-bold text-white tracking-widest uppercase flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span> OpenAP Physics
+              <div className="flex-1 flex flex-col justify-center border-t border-white/[0.05] pt-1 mt-2">
+                <h2 className="text-[0.60rem] font-bold text-gray-600 tracking-widest uppercase mb-1 flex items-center gap-2 pl-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"></span> Physics
                 </h2>
-                <div className="space-y-1">
-                  <DataRow icon={<Plane size={11}/>} iconColor="text-cyan-400" label="Profile" value={flightData.fuel_metrics.aircraft_type_assumed} />
-                  <DataRow icon={<Zap size={11}/>} iconColor="text-yellow-400" label="Burn Rate" value={`${flightData.fuel_metrics.burn_rate_kg_s} kg/s`} />
-                  <DataRow icon={<Wind size={11}/>} iconColor="text-red-400" label="Hourly Yield" value={`${flightData.fuel_metrics.burn_rate_kg_hr.toLocaleString()} kg/h`} />
+                <div className="space-y-1.5">
+                  <DataRow icon={<Plane size={13}/>} iconColor="text-violet-400" label="Profile" value={flightData.fuel_metrics.aircraft_type_assumed} />
+                  <DataRow icon={<Zap size={13}/>} iconColor="text-yellow-400" label="Burn" value={isMetric ? `${flightData.fuel_metrics.burn_rate_kg_s} kg/s` : `${(flightData.fuel_metrics.burn_rate_kg_s * 2.20462).toFixed(2)} lb/s`} />
+                  <DataRow icon={<Wind size={13}/>} iconColor="text-cyan-300" label="Yield" value={isMetric ? `${flightData.fuel_metrics.burn_rate_kg_hr.toLocaleString()} kg/h` : `${Math.round(flightData.fuel_metrics.burn_rate_kg_hr * 2.20462).toLocaleString()} lb/h`} />
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
-
       </div>
     </main>
   );
@@ -281,14 +268,27 @@ export default function Home() {
 
 function DataRow({ icon, iconColor, label, value }: { icon: any; iconColor: string; label: string; value: string }) {
   return (
-    <div className="flex justify-between items-center bg-[#0d0d10] px-2.5 py-1 rounded-md border border-[#191920]">
-      <div className="flex items-center gap-2 min-w-0">
-        <div className={`p-0.5 rounded ${iconColor}`}>{icon}</div>
-        <span className="text-gray-400 text-[0.68rem]">{label}</span>
+    <div className="flex justify-between items-center px-2 py-0.5">
+      <div className="flex items-center gap-3">
+        <div className={iconColor}>{icon}</div>
+        <span className="text-gray-500 text-[0.60rem] uppercase tracking-widest">{label}</span>
       </div>
-      <span className="text-white font-mono text-[0.72rem] truncate pl-2 max-w-[62%] text-right font-medium">
-        {value}
-      </span>
+      <span className="text-white font-mono text-[0.70rem] font-medium tracking-wide truncate pl-2 max-w-[55%] text-right">{value}</span>
+    </div>
+  );
+}
+
+function RouteRow({ label, iata, location, icon, color }: { label: string, iata: string, location: string, icon: any, color: string }) {
+  return (
+    <div className="flex justify-between items-center px-2 py-0.5">
+      <div className="flex items-center gap-3">
+        <div className={color}>{icon}</div>
+        <span className="text-gray-500 text-[0.60rem] uppercase tracking-widest">{label}</span>
+      </div>
+      <div className="flex items-center justify-end gap-2 w-[60%]">
+        <span className="text-white text-[0.70rem] font-medium truncate shrink">{location}</span>
+        <span className="text-gray-500 font-mono text-[0.65rem] shrink-0">{iata}</span>
+      </div>
     </div>
   );
 }

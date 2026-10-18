@@ -1,24 +1,21 @@
 import "./globals.css";
-import { Playfair_Display } from "next/font/google";
+import { Iceberg } from "next/font/google";
 
-const playfair = Playfair_Display({
+const iceberg = Iceberg({
+  weight: "400",
   subsets: ["latin"],
-  variable: "--font-serif-display",
+  variable: "--font-iceberg",
 });
 
 export const metadata = {
   title: "SkyQuant",
-  description: "Quantitative Aviation Economics & Trajectory Intelligence",
+  description: "Quantitative Aviation Economics",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={playfair.variable}>
-      <body className="antialiased selection:bg-fuchsia-500/30 bg-[#000000] text-gray-300">
+    <html lang="en" className={iceberg.variable}>
+      <body className="antialiased selection:bg-cyan-500/30 bg-[#000000] text-gray-300">
         {children}
       </body>
     </html>

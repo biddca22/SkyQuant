@@ -1,69 +1,179 @@
 "use client";
 
-import { useEffect } from "react";
-import { MapContainer, TileLayer, Polyline, CircleMarker, useMap } from "react-leaflet";
+import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
-import L from "leaflet";
 
-interface MapProps {
+// Unwraps longitudes across the ±180° International Date Line
+// Ensures Trans-Pacific flights (e.g., MEL -> SFO) cross the Pacific instead of the Atlantic
+const normalizeRouteCoordinates = (
+  origLat?: number, origLng?: number,
+  currLat?: number, currLng?: number,
+  destLat?: number, destLng?: number
+) => {
+  const cLat = currLat ?? 0;
+  let cLng = currLng ?? 0;
+
+  if (origLat != null && origLng != null && destLat != null && destLng != null) {
+    const oLng = origLng;
+    let dLng = destLng;
+
+    while (cLng - oLng > 180) cLng -= 360;
+    while (cLng - oLng < -180) cLng += 360;
+
+    while (dLng - cLng > 180) dLng -= 360;
+    while (dLng - cLng < -180) dLng += 360;
+
+    if (Math.abs(dLng - oLng) > 220) {
+      if (dLng - oLng > 180) dLng -= 360;
+      else if (dLng - oLng < -180) dLng += 360;
+    }
+
+    return {
+      origin: [origLat, oLng] as [number, number],
+      current: [cLat, cLng] as [number, number],
+      dest: [destLat, dLng] as [number, number],
+    };
+  }
+
+  return {
+    origin: null,
+    current: [cLat, cLng] as [number, number],
+    dest: null,
+  };
+};
+
+export default function Map({
+  latitude,
+  longitude,
+  routeData,
+}: {
   latitude: number;
   longitude: number;
-  routeData?: any;
-}
+  routeData: any;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<any>(null);
+  const layerGroupRef = useRef<any>(null);
+  const lastRouteKeyRef = useRef<string>("");
 
-function MapCamera({ latitude, longitude, routeData }: MapProps) {
-  const map = useMap();
-
+  // Clean up the map instance when switching tabs or unmounting
   useEffect(() => {
-    const hasRoute = routeData?.origin_lat != null && routeData?.origin_lng != null && routeData?.dest_lat != null && routeData?.dest_lng != null;
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
 
-    if (hasRoute) {
-      const bounds = L.latLngBounds([
-        [routeData.origin_lat, routeData.origin_lng],
-        [routeData.dest_lat, routeData.dest_lng],
-        [latitude, longitude]
-      ]);
-      map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
-    } else {
-      map.flyTo([latitude, longitude], 6, { duration: 1.5 });
+  // Initialize and update the map purely on the client
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function updateMap() {
+      const L = (await import("leaflet")).default || (await import("leaflet"));
+      if (isCancelled || !containerRef.current) return;
+
+      const norm = normalizeRouteCoordinates(
+        routeData?.origin_lat,
+        routeData?.origin_lng,
+        latitude,
+        longitude,
+        routeData?.dest_lat,
+        routeData?.dest_lng
+      );
+
+      if (!mapRef.current) {
+        const map = L.map(containerRef.current, {
+          center: norm.current,
+          zoom: 4,
+          minZoom: 2,
+          zoomControl: false,
+        });
+
+        L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+        ).addTo(map);
+
+        L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
+        ).addTo(map);
+
+        layerGroupRef.current = L.layerGroup().addTo(map);
+        mapRef.current = map;
+      }
+
+      const map = mapRef.current;
+      const layerGroup = layerGroupRef.current;
+      if (!map || !layerGroup) return;
+
+      layerGroup.clearLayers();
+
+      // Straight dashed flight line between Origin and Destination
+      if (norm.origin && norm.dest) {
+        L.polyline([norm.origin, norm.dest], {
+          color: "#8b5cf6",
+          weight: 2,
+          dashArray: "5, 8",
+          opacity: 0.6,
+        }).addTo(layerGroup);
+      }
+
+      // Origin Marker (Blue)
+      if (norm.origin) {
+        L.circleMarker(norm.origin, {
+          radius: 4,
+          color: "#3b82f6",
+          fillColor: "#3b82f6",
+          fillOpacity: 1,
+          weight: 1,
+        }).addTo(layerGroup);
+      }
+
+      // Destination Marker (Emerald)
+      if (norm.dest) {
+        L.circleMarker(norm.dest, {
+          radius: 4,
+          color: "#10b981",
+          fillColor: "#10b981",
+          fillOpacity: 1,
+          weight: 1,
+        }).addTo(layerGroup);
+      }
+
+      // Live Aircraft Marker (Fuchsia)
+      L.circleMarker(norm.current, {
+        radius: 5,
+        color: "#d946ef",
+        fillColor: "#f0abfc",
+        fillOpacity: 1,
+        weight: 2,
+      }).addTo(layerGroup);
+
+      // Intelligently fit bounds once per flight search
+      const routeKey = `${routeData?.origin_lat}-${routeData?.origin_lng}-${routeData?.dest_lat}-${routeData?.dest_lng}`;
+      if (lastRouteKeyRef.current !== routeKey) {
+        lastRouteKeyRef.current = routeKey;
+        if (norm.origin && norm.dest) {
+          const bounds = L.latLngBounds([norm.origin, norm.current, norm.dest]);
+          map.fitBounds(bounds, {
+            padding: [45, 45],
+            maxZoom: 6,
+            animate: true,
+            duration: 1.5,
+          });
+        } else {
+          map.setView(norm.current, 4, { animate: true, duration: 1.5 });
+        }
+      }
     }
-  }, [latitude, longitude, routeData, map]);
 
-  return null;
-}
+    updateMap();
 
-export default function FlightMap({ latitude, longitude, routeData }: MapProps) {
-  const flightCoords: [number, number] = [latitude, longitude];
-  
-  const hasRoute = routeData?.origin_lat != null && routeData?.origin_lng != null && routeData?.dest_lat != null && routeData?.dest_lng != null;
-  const routeCoords: [number, number][] = hasRoute 
-    ? [[routeData.origin_lat, routeData.origin_lng], [routeData.dest_lat, routeData.dest_lng]]
-    : [];
+    return () => {
+      isCancelled = true;
+    };
+  }, [latitude, longitude, routeData]);
 
-  return (
-    <div className="w-full h-full bg-[#050505] rounded-xl overflow-hidden border border-[#1a1a1a] z-0">
-      <MapContainer center={flightCoords} zoom={5} className="h-full w-full" zoomControl={false} attributionControl={false}>
-        
-        {/* New, reliable Esri Dark Canvas Map */}
-        <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}" />
-        
-        <MapCamera latitude={latitude} longitude={longitude} routeData={routeData} />
-
-        {routeCoords.length === 2 && (
-          <Polyline positions={routeCoords} pathOptions={{ color: '#8b5cf6', weight: 2, dashArray: '5, 10', opacity: 0.6 }} />
-        )}
-
-        {routeCoords.length === 2 && (
-          <>
-            <CircleMarker center={routeCoords[0]} radius={4} pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 1 }} />
-            <CircleMarker center={routeCoords[1]} radius={4} pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 1 }} />
-          </>
-        )}
-
-        <CircleMarker center={flightCoords} radius={6} pathOptions={{ color: '#f0abfc', fillColor: '#f0abfc', fillOpacity: 1 }}>
-          <div className="animate-ping absolute inline-flex h-full w-full rounded-full bg-fuchsia-400 opacity-75"></div>
-        </CircleMarker>
-      </MapContainer>
-    </div>
-  );
+  return <div ref={containerRef} className="w-full h-full bg-[#111215] z-0" />;
 }

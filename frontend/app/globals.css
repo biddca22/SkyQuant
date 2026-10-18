@@ -1,14 +1,7 @@
 @import "tailwindcss";
 
-@font-face {
-  font-family: 'Mondapick';
-  src: url('/fonts/Mondapick.woff2') format('woff2'),
-       url('/fonts/Mondapick.otf') format('opentype');
-  font-display: swap;
-}
-
-.font-brand {
-  font-family: 'Mondapick', var(--font-serif-display), serif;
+@theme {
+  --font-iceberg: var(--font-iceberg), monospace;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
