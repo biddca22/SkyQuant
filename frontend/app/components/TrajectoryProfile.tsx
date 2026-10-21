@@ -1,89 +1,200 @@
 "use client";
 
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { ArrowUpRight, Compass, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { ArrowUpRight, Compass, ShieldAlert, CheckCircle2, TrendingUp, Layers } from "lucide-react";
+import { FlightData } from "../types";
 
-export default function TrajectoryProfile({ telemetry, isMetric }: { telemetry: any; isMetric: boolean }) {
+interface TrajectoryProps {
+  telemetry: FlightData;
+  isMetric: boolean;
+  theme?: "glass" | "obsidian";
+}
+
+export default function TrajectoryProfile({ telemetry, isMetric, theme = "glass" }: TrajectoryProps) {
   const currentAltMeters = telemetry?.altitude_m || 10972;
   const currentAltDisplay = isMetric ? currentAltMeters : currentAltMeters / 0.3048;
-  const optAltDisplay = isMetric ? 11500 : 38000;
-  
+  const optAltDisplay = isMetric ? 11582 : 38000;
+
   const profileData = [
     { waypoint: "DEP", actual: 0, optimal: 0 },
-    { waypoint: "CLM-1", actual: isMetric ? 5500 : 18000, optimal: isMetric ? 6100 : 20000 },
-    { waypoint: "CLM-2", actual: isMetric ? 8800 : 29000, optimal: isMetric ? 9400 : 31000 },
-    { waypoint: "TOC", actual: isMetric ? 11000 : 36000, optimal: isMetric ? 11000 : 36000 },
-    { waypoint: "CRZ-1", actual: currentAltDisplay, optimal: optAltDisplay },
-    { waypoint: "CRZ-2", actual: isMetric ? 11900 : 39000, optimal: isMetric ? 12200 : 40000 },
-    { waypoint: "TOD", actual: isMetric ? 11900 : 39000, optimal: isMetric ? 12200 : 40000 },
-    { waypoint: "DES", actual: isMetric ? 3600 : 12000, optimal: isMetric ? 3600 : 12000 },
+    { waypoint: "CLM-1 (FL180)", actual: isMetric ? 5500 : 18000, optimal: isMetric ? 6100 : 20000 },
+    { waypoint: "CLM-2 (FL290)", actual: isMetric ? 8800 : 29000, optimal: isMetric ? 9400 : 31000 },
+    { waypoint: "TOC (FL350)", actual: isMetric ? 10668 : 35000, optimal: isMetric ? 10668 : 35000 },
+    { waypoint: "CRZ-1 (FL360)", actual: Math.round(currentAltDisplay), optimal: Math.round(optAltDisplay) },
+    { waypoint: "CRZ-2 (FL390)", actual: isMetric ? 11887 : 39000, optimal: isMetric ? 12192 : 40000 },
+    { waypoint: "TOD (FL390)", actual: isMetric ? 11887 : 39000, optimal: isMetric ? 12192 : 40000 },
+    { waypoint: "DES (FL120)", actual: isMetric ? 3657 : 12000, optimal: isMetric ? 3657 : 12000 },
     { waypoint: "ARR", actual: 0, optimal: 0 },
   ];
 
   const altitudeDelta = optAltDisplay - currentAltDisplay;
   const isSuboptimal = altitudeDelta > (isMetric ? 450 : 1500);
 
-  return (
-    <div className="w-full h-full bg-white/[0.02] rounded-2xl p-4 flex flex-col justify-between">
-      <div className="h-[62%] flex flex-col">
-        <div className="flex justify-between items-center mb-2 px-1">
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-white">Vertical Flight Profile</h3>
-            <p className="text-[0.65rem] text-gray-500">Cruising altitude vs minimum-burn aerodynamic flight level</p>
-          </div>
-          <div className="flex items-center gap-3 text-[0.65rem]">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 bg-cyan-400"></span> Telemetry</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 bg-blue-600 border-b border-dashed"></span> Step Schedule</span>
-          </div>
-        </div>
-        <div className="flex-1 w-full min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={profileData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid stroke="#15151c" strokeDasharray="3 3" />
-              <XAxis dataKey="waypoint" tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} unit={isMetric ? "m" : "ft"} />
-              <Tooltip contentStyle={{ backgroundColor: "#0b0b0e", borderColor: "#222", borderRadius: 8, fontSize: 11 }} />
-              <Line type="monotone" dataKey="actual" stroke="#22d3ee" strokeWidth={2.5} dot={{ r: 3, fill: "#22d3ee" }} />
-              <Line type="stepAfter" dataKey="optimal" stroke="#2563eb" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+  const isGlass = theme === "glass";
 
-      <div className="h-[35%] grid grid-cols-3 gap-3 pt-2">
-        <div className="bg-white/[0.03] rounded-xl p-3 flex flex-col justify-between hover:bg-white/[0.05] transition-colors">
-          <div className="flex items-center justify-between text-gray-400 text-[0.70rem]">
-            <span className="font-bold uppercase tracking-wider">Efficiency</span>
-            {isSuboptimal ? <ShieldAlert size={14} className="text-amber-400" /> : <CheckCircle2 size={14} className="text-emerald-400" />}
+  return (
+    <div
+      className={`w-full h-full min-h-[480px] rounded-3xl p-6 flex flex-col justify-between transition-all duration-300 ${
+        isGlass
+          ? "glass-deck-panel"
+          : "obsidian-panel rounded-2xl"
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+              isGlass
+                ? "bg-sky-500/20 border border-sky-400/40 text-sky-300 shadow-[0_0_15px_rgba(56,189,248,0.3)]"
+                : "bg-cyan-500/15 border border-cyan-400/40 text-cyan-400"
+            }`}
+          >
+            <Layers size={18} />
           </div>
           <div>
-            <p className="text-sm font-bold text-white font-mono">{Math.round(currentAltDisplay).toLocaleString()} <span className="text-gray-500 text-[0.65rem]">vs Opt {Math.round(optAltDisplay).toLocaleString()}</span></p>
-            <p className={`text-[0.65rem] mt-0.5 ${isSuboptimal ? "text-amber-400" : "text-emerald-400"}`}>
-              {isSuboptimal ? `Low altitude drag penalty active` : "Operating in optimal oceanic corridor"}
+            <h3 className="text-sm font-extrabold text-white tracking-wide flex items-center gap-2">
+              <span>Vertical Trajectory & Step-Climb Optimizer</span>
+              {isGlass && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-400/20 text-sky-300 border border-sky-400/30">
+                  OPTIMAL CRUISE
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-slate-400">
+              Atmospheric wind shear, air density strata, and step-climb fuel savings
             </p>
           </div>
         </div>
 
-        <div className="bg-white/[0.03] rounded-xl p-3 flex flex-col justify-between hover:bg-white/[0.05] transition-colors">
-          <div className="flex items-center justify-between text-gray-400 text-[0.70rem]">
-            <span className="font-bold uppercase tracking-wider">Filed vs Flown</span>
-            <Compass size={14} className="text-blue-400" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-white font-mono">98.2% <span className="text-gray-500 text-[0.65rem]">Orthodrome</span></p>
-            <p className="text-[0.65rem] text-cyan-400 mt-0.5">+14.2 NM lateral tactical routing</p>
-          </div>
+        {/* Status Callout Badge */}
+        <div
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-mono font-bold ${
+            isSuboptimal
+              ? "bg-amber-500/15 border-amber-400/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]"
+              : "bg-emerald-500/15 border-emerald-400/40 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.25)]"
+          }`}
+        >
+          {isSuboptimal ? (
+            <>
+              <ShieldAlert size={14} className="text-amber-400" />
+              <span>Step-Climb to FL380 Recommended (-2.4% Burn)</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 size={14} className="text-emerald-400" />
+              <span>Cruising at Optimal Stratum</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Main Trajectory Chart */}
+      <div className="w-full h-[320px] relative">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={profileData} margin={{ top: 15, right: 20, left: 10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={isGlass ? "rgba(255,255,255,0.08)" : "#1e293b"} />
+            <XAxis
+              dataKey="waypoint"
+              stroke={isGlass ? "#94a3b8" : "#64748b"}
+              tick={{ fill: isGlass ? "#cbd5e1" : "#94a3b8", fontSize: 10, fontFamily: "monospace" }}
+            />
+            <YAxis
+              stroke={isGlass ? "#94a3b8" : "#64748b"}
+              tick={{ fill: isGlass ? "#cbd5e1" : "#94a3b8", fontSize: 11, fontFamily: "monospace" }}
+              unit={isMetric ? " m" : " ft"}
+            />
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                return (
+                  <div
+                    className={`p-3 rounded-2xl shadow-2xl border text-xs font-mono ${
+                      isGlass
+                        ? "glass-floating-hud text-slate-100 border-white/20"
+                        : "bg-slate-900/95 text-slate-100 border-slate-700"
+                    }`}
+                  >
+                    <p className="font-bold text-white mb-2 pb-1 border-b border-white/10">{label}</p>
+                    <div className="space-y-1">
+                      {payload.map((entry, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-4">
+                          <span className="flex items-center gap-1.5" style={{ color: entry.color }}>
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                            {entry.name}:
+                          </span>
+                          <span className="font-bold text-white tabular-nums">
+                            {Number(entry.value).toLocaleString()} {isMetric ? "m" : "ft"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }}
+            />
+            <Line
+              type="monotone"
+              dataKey="optimal"
+              name="Optimal Geodesic Trajectory"
+              stroke={isGlass ? "#34d399" : "#10b981"}
+              strokeWidth={2.5}
+              strokeDasharray="5 5"
+              dot={{ r: 4, fill: isGlass ? "#34d399" : "#10b981", strokeWidth: 2, stroke: "#ffffff" }}
+            />
+            <Line
+              type="monotone"
+              dataKey="actual"
+              name="Actual Radar Flight Path"
+              stroke={isGlass ? "#c084fc" : "#06b6d4"}
+              strokeWidth={3}
+              dot={{ r: 5, fill: isGlass ? "#c084fc" : "#06b6d4", strokeWidth: 2, stroke: "#ffffff" }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Trajectory Insights Footer */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-white/10 text-xs">
+        <div
+          className={`p-3 rounded-xl border transition-all ${
+            isGlass ? "glass-deck-card" : "bg-slate-900 border-slate-800"
+          }`}
+        >
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mb-1">
+            CURRENT FLIGHT LEVEL
+          </span>
+          <span className="font-mono font-bold text-sm text-white">
+            FL{Math.round((telemetry?.altitude_m || 10972) / 30.48 / 10) * 10}
+            <span className="text-xs text-slate-400 font-normal ml-2">
+              ({isMetric ? `${Math.round(currentAltMeters).toLocaleString()} m` : `${Math.round(currentAltMeters / 0.3048).toLocaleString()} ft`})
+            </span>
+          </span>
         </div>
 
-        <div className="bg-white/[0.03] rounded-xl p-3 flex flex-col justify-between hover:bg-white/[0.05] transition-colors">
-          <div className="flex items-center justify-between text-gray-400 text-[0.70rem]">
-            <span className="font-bold uppercase tracking-wider">Cost Index</span>
-            <ArrowUpRight size={14} className="text-emerald-400" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-white font-mono">CI 32 <span className="text-gray-500 text-[0.65rem]">trade-off</span></p>
-            <p className="text-[0.65rem] text-gray-400 mt-0.5">Balancing flight-time vs fuel cost</p>
-          </div>
+        <div
+          className={`p-3 rounded-xl border transition-all ${
+            isGlass ? "glass-deck-card" : "bg-slate-900 border-slate-800"
+          }`}
+        >
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mb-1">
+            NEXT STEP-CLIMB WINDOW
+          </span>
+          <span className="font-mono font-bold text-sm text-sky-300">
+            FL380 @ WAYPOINT DOTTY
+          </span>
+        </div>
+
+        <div
+          className={`p-3 rounded-xl border transition-all ${
+            isGlass ? "glass-deck-card" : "bg-slate-900 border-slate-800"
+          }`}
+        >
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mb-1">
+            ESTIMATED CRUISE SAVINGS
+          </span>
+          <span className="font-mono font-bold text-sm text-emerald-300">
+            340 kg Fuel / 1.07 Tons CO₂
+          </span>
         </div>
       </div>
     </div>
