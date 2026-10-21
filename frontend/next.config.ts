@@ -10,9 +10,6 @@ const nextConfig: NextConfig = {
     "localhost",
     "127.0.0.1",
   ],
-  devIndicators: {
-    buildActivity: false,
-  },
 };
 
 export default nextConfig;
