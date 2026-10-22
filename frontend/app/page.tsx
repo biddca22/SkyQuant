@@ -169,9 +169,9 @@ export default function Home() {
   const [theme] = useState<"glass">("glass");
   const [showAboutModal, setShowAboutModal] = useState(false);
 
+  // Removed the handleScanAirspace() trigger from initial mount
   useEffect(() => {
     setMounted(true);
-    handleScanAirspace();
   }, []);
 
   useEffect(() => {
@@ -201,7 +201,7 @@ export default function Home() {
     setLoading(true); setHasError(false); setIsLive(true); setCooldownTime(30);
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/flight/${encodeURIComponent(cleanQuery)}`);
+      const response = await fetch(`/api/flight/${encodeURIComponent(cleanQuery)}`);
       const data = await response.json();
       if (!response.ok) throw new Error();
       setFlightData(data);
@@ -218,12 +218,12 @@ export default function Home() {
     setLoading(true); setHasError(false); setIsLive(true); setCooldownTime(30);
     
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/random-flight`);
+      const res = await fetch(`/api/random-flight`);
       const data = await res.json();
       if (!res.ok) throw new Error();
       setCallsignInput(data.callsign);
       
-      const response = await fetch(`http://127.0.0.1:8000/api/flight/${encodeURIComponent(data.callsign)}`);
+      const response = await fetch(`/api/flight/${encodeURIComponent(data.callsign)}`);
       const flightRes = await response.json();
       if (!response.ok) throw new Error();
       setFlightData(flightRes);
@@ -240,7 +240,7 @@ export default function Home() {
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/telemetry/${encodeURIComponent(activeCallsign)}`);
+        const res = await fetch(`/api/telemetry/${encodeURIComponent(activeCallsign)}`);
         if (res.ok) {
           const freshData = await res.json();
           setFlightData((prev: any) => prev ? { ...prev, flight: freshData.flight, fuel_metrics: freshData.fuel_metrics } : prev);
