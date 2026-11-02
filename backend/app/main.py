@@ -588,6 +588,86 @@ def fetch_and_cache_route(callsign: str, curr_lat: float, curr_lon: float, veloc
             pass
     return None
 
+NEARBY_CACHE: Dict[str, Any] = {}
+
+@app.get("/api/flights/nearby")
+def get_nearby_flights(lat: float = 40.4168, lon: float = -3.7038, radius_km: int = 350):
+    cache_key = f"{round(lat, 1)}_{round(lon, 1)}_{radius_km}"
+    now = time.time()
+    if cache_key in NEARBY_CACHE and (now - NEARBY_CACHE[cache_key]["timestamp"] < 30):
+        return NEARBY_CACHE[cache_key]["data"]
+
+    try:
+        lat_delta = radius_km / 111.0
+        lon_delta = radius_km / max(111.0 * math.cos(math.radians(lat)), 10.0)
+        bounds = f"{lat + lat_delta:.3f},{lat - lat_delta:.3f},{lon - lon_delta:.3f},{lon + lon_delta:.3f}"
+
+        raw_flights = fr_api.get_flights(bounds=bounds)
+        if not raw_flights:
+            raw_flights = get_cached_flights()
+
+        candidates = []
+        for f in raw_flights:
+            cs = (getattr(f, "callsign", "") or "").strip().upper()
+            if not cs or not is_commercial_callsign(cs):
+                continue
+            if getattr(f, "on_ground", 0) == 1 or getattr(f, "altitude", 0) <= 1500:
+                continue
+            f_lat, f_lon = getattr(f, "latitude", None), getattr(f, "longitude", None)
+            if f_lat is None or f_lon is None:
+                continue
+
+            dist = haversine_km(lat, lon, f_lat, f_lon)
+            if dist <= radius_km * 1.25:
+                orig = (getattr(f, "origin_airport_iata", "") or "").strip().upper()
+                dest = (getattr(f, "destination_airport_iata", "") or "").strip().upper()
+                has_route = (
+                    orig not in ("", "N/A")
+                    and dest not in ("", "N/A")
+                    and orig != dest
+                    and orig in airports
+                    and dest in airports
+                )
+                candidates.append((dist, has_route, f, cs, orig, dest))
+
+        # Sort so flights with complete route data and closest to the user come first
+        candidates.sort(key=lambda x: (not x[1], x[0]))
+        selected = candidates[:35]
+
+        flights_out = []
+        featured_callsign = None
+
+        for dist, has_route, f, cs, orig, dest in selected:
+            if has_route and featured_callsign is None:
+                featured_callsign = cs
+            flights_out.append({
+                "callsign": cs,
+                "lat": f.latitude,
+                "lon": f.longitude,
+                "heading": float(getattr(f, "heading", 0) or 0),
+                "altitude_m": round(max(getattr(f, "altitude", 0) * 0.3048, 500.0)),
+                "velocity_kmh": round(max(getattr(f, "ground_speed", 0) * 1.852, 200.0)),
+                "origin_iata": orig if orig not in ("", "N/A") else "UNK",
+                "dest_iata": dest if dest not in ("", "N/A") else "UNK",
+                "aircraft_code": (getattr(f, "aircraft_code", "") or "A320").strip().upper(),
+                "distance_km": round(dist, 1),
+            })
+
+        result = {
+            "center": {"lat": lat, "lon": lon, "radius_km": radius_km},
+            "featured_callsign": featured_callsign or (flights_out[0]["callsign"] if flights_out else None),
+            "flights": flights_out,
+        }
+        NEARBY_CACHE[cache_key] = {"timestamp": now, "data": result}
+        return result
+    except Exception as e:
+        return {
+            "center": {"lat": lat, "lon": lon, "radius_km": radius_km},
+            "featured_callsign": None,
+            "flights": [],
+            "error": str(e),
+        }
+
 @app.get("/api/random-flight")
 def get_random_flight():
     active_flights = [

@@ -2,26 +2,28 @@
 
 import { useState } from "react";
 import { ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip } from "recharts";
-import { Leaf, AlertTriangle, Cpu, TrendingDown, DollarSign, BarChart3, Sliders } from "lucide-react";
+import { Leaf, DollarSign, Sliders } from "lucide-react";
 import { FlightData, FuelMetrics } from "../types";
+import { formatNumber } from "../page";
 
 interface EconomicsProps {
   telemetry: FlightData;
   fuelMetrics: FuelMetrics;
   theme?: "glass" | "obsidian";
+  language?: "EN" | "FR" | "ES";
 }
 
-export default function AviationEconomics({ telemetry, fuelMetrics, theme = "glass" }: EconomicsProps) {
-  const [fuelPricePerTon, setFuelPricePerTon] = useState(880); // USD per metric ton Jet A-1
-  const [loadFactor, setLoadFactor] = useState(82); // % passenger load factor
+export default function AviationEconomics({ telemetry, fuelMetrics, theme = "glass", language = "EN" }: EconomicsProps) {
+  const [fuelPricePerTon, setFuelPricePerTon] = useState(880);
+  const [loadFactor, setLoadFactor] = useState(82);
 
   const burnRateKgH = fuelMetrics?.burn_rate_kg_hr || 2560;
   const co2PerHourTons = fuelMetrics?.co2_per_hr_tons || (burnRateKgH * 3.16) / 1000;
   const euEtsCostPerHour = fuelMetrics?.eu_ets_cost_hr_eur || co2PerHourTons * 72.4;
 
   const hourlyFuelCost = (burnRateKgH / 1000) * fuelPricePerTon;
-  const seatCapacity = 312; // B777 / A350 average
-  const totalCostPerHour = hourlyFuelCost + euEtsCostPerHour * 1.08 + 1850; // Crew + maintenance + nav fees
+  const seatCapacity = 312;
+  const totalCostPerHour = hourlyFuelCost + euEtsCostPerHour * 1.08 + 1850;
   const costPerSeatHour = totalCostPerHour / (seatCapacity * (loadFactor / 100));
 
   const dynamicScore = 91;
@@ -36,62 +38,48 @@ export default function AviationEconomics({ telemetry, fuelMetrics, theme = "gla
 
   const isGlass = theme === "glass";
 
+  const t = {
+    EN: { title: "EU ETS & Quantitative Aviation Economics", badge: "EU ETS COMPLIANT", desc: "Fuel sensitivity, CORSIA carbon credits, and operating margins", ets: "ETS Allowance", fuel: "Jet A-1 Market Price", pax: "Passenger Load Factor", hourly: "Hourly Fuel Burn Cost", seat: "Cost / Seat-Hour", cap: "Capacity", liab: "Carbon Liability", sar: "Specific Air Range", int: "CO₂ Intensity" },
+    FR: { title: "EU ETS & Économie Quantitative", badge: "CONFORME EU ETS", desc: "Sensibilité au carburant, crédits CORSIA et marges d'exploitation", ets: "Quota ETS", fuel: "Prix du Jet A-1", pax: "Taux de remplissage", hourly: "Coût Horaire Carburant", seat: "Coût / Siège-Heure", cap: "Capacité", liab: "Obligation carbone", sar: "Distance spécifique", int: "Intensité CO₂" },
+    ES: { title: "EU ETS y Economía Cuantitativa", badge: "CONFORME EU ETS", desc: "Sensibilidad al combustible, créditos CORSIA y márgenes", ets: "Derecho ETS", fuel: "Precio del Jet A-1", pax: "Factor de ocupación", hourly: "Coste Horario Combustible", seat: "Coste / Asiento-Hora", cap: "Capacidad", liab: "Pasivo de carbono", sar: "Alcance específico", int: "Intensidad CO₂" }
+  }[language] || { title: "EU ETS & Quantitative Aviation Economics", badge: "EU ETS COMPLIANT", desc: "Fuel sensitivity, CORSIA carbon credits, and operating margins", ets: "ETS Allowance", fuel: "Jet A-1 Market Price", pax: "Passenger Load Factor", hourly: "Hourly Fuel Burn Cost", seat: "Cost / Seat-Hour", cap: "Capacity", liab: "Carbon Liability", sar: "Specific Air Range", int: "CO₂ Intensity" };
+
   return (
-    <div
-      className={`w-full h-full min-h-[480px] rounded-3xl p-6 flex flex-col justify-between transition-all duration-300 ${
-        isGlass
-          ? "glass-deck-panel"
-          : "obsidian-panel rounded-2xl"
-      }`}
-    >
-      {/* Header with Title & Eco Badge */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-              isGlass
-                ? "bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-                : "bg-cyan-500/15 border border-cyan-400/40 text-cyan-400"
-            }`}
-          >
-            <Leaf size={18} />
+    <div className={`w-full h-full min-h-[480px] rounded-3xl p-6 flex flex-col justify-between transition-all duration-300 border border-white/10 font-sans ${isGlass ? "glass-deck-panel" : "obsidian-panel rounded-2xl"}`}>
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-3.5">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isGlass ? "bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]" : "bg-cyan-500/15 border border-cyan-400/40 text-cyan-400"}`}>
+            <Leaf size={20} />
           </div>
           <div>
-            <h3 className="text-sm font-extrabold text-white tracking-wide flex items-center gap-2">
-              <span>EU ETS & Quantitative Aviation Economics</span>
+            <h3 className="text-sm font-extrabold text-white tracking-wide flex items-center gap-2.5">
+              <span>{t.title}</span>
               {isGlass && (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
-                  EU ETS COMPLIANT
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 tracking-wider">
+                  {t.badge}
                 </span>
               )}
             </h3>
-            <p className="text-xs text-slate-400">
-              Fuel sensitivity, CORSIA carbon credits, and operating margins
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {t.desc}
             </p>
           </div>
         </div>
 
-        {/* Real-time ETS ticker */}
-        <div
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-mono ${
-            isGlass ? "glass-deck-card" : "bg-slate-900 border-slate-700"
-          }`}
-        >
-          <span className="text-slate-400">ETS ALLOWANCE:</span>
+        <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-mono ${isGlass ? "glass-deck-card border-white/10" : "bg-slate-900 border-slate-700"}`}>
+          <span className="text-slate-400">{t.ets}:</span>
           <span className="font-bold text-emerald-300 glow-text-emerald">€72.40 / TON</span>
         </div>
       </div>
 
-      {/* Main Grid: Radar Chart & Interactive Sensitivity Sliders */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 my-2">
-        {/* Radar Performance Chart */}
         <div className="h-[260px] flex items-center justify-center relative">
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
               <PolarGrid stroke={isGlass ? "rgba(255,255,255,0.12)" : "#1e293b"} />
               <PolarAngleAxis
                 dataKey="subject"
-                tick={{ fill: isGlass ? "#cbd5e1" : "#94a3b8", fontSize: 10, fontFamily: "monospace" }}
+                tick={{ fill: isGlass ? "#cbd5e1" : "#94a3b8", fontSize: 10, fontFamily: "sans-serif", fontWeight: 500 }}
               />
               <PolarRadiusAxis
                 angle={30}
@@ -109,15 +97,9 @@ export default function AviationEconomics({ telemetry, fuelMetrics, theme = "gla
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) return null;
                   return (
-                    <div
-                      className={`p-2.5 rounded-xl border text-xs font-mono shadow-xl ${
-                        isGlass
-                          ? "glass-floating-hud text-slate-100 border-white/20"
-                          : "bg-slate-900 text-slate-100 border-slate-700"
-                      }`}
-                    >
-                      <p className="font-bold text-emerald-300">{payload[0]?.name}</p>
-                      <p className="text-white">Index: {payload[0]?.value} / 100</p>
+                    <div className={`p-2.5 rounded-xl border text-xs font-mono shadow-xl ${isGlass ? "glass-floating-hud text-slate-100 border-white/20" : "bg-slate-900 text-slate-100 border-slate-700"}`}>
+                      <p className="font-bold text-emerald-300 font-sans">{payload[0]?.name}</p>
+                      <p className="text-white mt-1">Index: {payload[0]?.value} / 100</p>
                     </div>
                   );
                 }}
@@ -126,20 +108,14 @@ export default function AviationEconomics({ telemetry, fuelMetrics, theme = "gla
           </ResponsiveContainer>
         </div>
 
-        {/* Quant Interactive Sliders & Live Financial Metrics */}
         <div className="flex flex-col justify-center space-y-4">
-          {/* Jet A-1 Fuel Price Slider */}
-          <div
-            className={`p-3.5 rounded-2xl border transition-all ${
-              isGlass ? "glass-deck-card" : "bg-slate-900/80 border-slate-800"
-            }`}
-          >
-            <div className="flex justify-between items-center mb-1.5 text-xs font-mono">
-              <span className="text-slate-300 flex items-center gap-1.5">
-                <DollarSign size={13} className="text-amber-400" />
-                Jet A-1 Market Price:
+          <div className={`p-4 rounded-2xl border transition-all ${isGlass ? "glass-deck-card border-white/10" : "bg-slate-900/80 border-slate-800"}`}>
+            <div className="flex justify-between items-center mb-2.5 text-[11px] font-sans font-medium">
+              <span className="text-slate-300 flex items-center gap-1.5 tracking-wide">
+                <DollarSign size={14} className="text-amber-400" />
+                {t.fuel}:
               </span>
-              <span className="font-bold text-amber-300 font-mono">${fuelPricePerTon} / Metric Ton</span>
+              <span className="font-bold text-amber-300 font-mono">${formatNumber(fuelPricePerTon, language)} / Ton</span>
             </div>
             <input
               type="range"
@@ -152,18 +128,13 @@ export default function AviationEconomics({ telemetry, fuelMetrics, theme = "gla
             />
           </div>
 
-          {/* Load Factor Slider */}
-          <div
-            className={`p-3.5 rounded-2xl border transition-all ${
-              isGlass ? "glass-deck-card" : "bg-slate-900/80 border-slate-800"
-            }`}
-          >
-            <div className="flex justify-between items-center mb-1.5 text-xs font-mono">
-              <span className="text-slate-300 flex items-center gap-1.5">
-                <Sliders size={13} className="text-violet-400" />
-                Passenger Load Factor:
+          <div className={`p-4 rounded-2xl border transition-all ${isGlass ? "glass-deck-card border-white/10" : "bg-slate-900/80 border-slate-800"}`}>
+            <div className="flex justify-between items-center mb-2.5 text-[11px] font-sans font-medium">
+              <span className="text-slate-300 flex items-center gap-1.5 tracking-wide">
+                <Sliders size={14} className="text-violet-400" />
+                {t.pax}:
               </span>
-              <span className="font-bold text-violet-300 font-mono">{loadFactor}% Capacity</span>
+              <span className="font-bold text-violet-300 font-mono">{loadFactor}% {t.cap}</span>
             </div>
             <input
               type="range"
@@ -176,50 +147,40 @@ export default function AviationEconomics({ telemetry, fuelMetrics, theme = "gla
             />
           </div>
 
-          {/* Quant Live Output Grid */}
-          <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-            <div
-              className={`p-3 rounded-xl border ${
-                isGlass ? "glass-deck-card" : "bg-slate-900 border-slate-800"
-              }`}
-            >
-              <span className="text-[10px] text-slate-400 block">HOURLY FUEL BURN COST</span>
-              <span className="text-sm font-bold text-white mt-0.5 block">
-                ${Math.round(hourlyFuelCost).toLocaleString()} / hr
+          <div className="grid grid-cols-2 gap-3 text-xs font-sans">
+            <div className={`p-3 rounded-xl border flex flex-col justify-center ${isGlass ? "glass-deck-card border-white/10" : "bg-slate-900 border-slate-800"}`}>
+              <span className="text-[10px] text-slate-400 font-medium">{t.hourly}</span>
+              <span className="text-base font-extrabold text-white mt-1 font-mono">
+                ${formatNumber(Math.round(hourlyFuelCost), language)} / hr
               </span>
             </div>
-            <div
-              className={`p-3 rounded-xl border ${
-                isGlass ? "glass-deck-card" : "bg-slate-900 border-slate-800"
-              }`}
-            >
-              <span className="text-[10px] text-slate-400 block">COST / SEAT-HOUR</span>
-              <span className="text-sm font-bold text-emerald-300 mt-0.5 block">
-                ${costPerSeatHour.toFixed(2)} / pax-hr
+            <div className={`p-3 rounded-xl border flex flex-col justify-center ${isGlass ? "glass-deck-card border-white/10" : "bg-slate-900 border-slate-800"}`}>
+              <span className="text-[10px] text-slate-400 font-medium">{t.seat}</span>
+              <span className="text-base font-extrabold text-emerald-300 mt-1 font-mono">
+                ${formatNumber(costPerSeatHour, language, false)} / pax-hr
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Footer KPI Ribbon */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-white/10 text-xs font-mono">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-4 border-t border-white/10 text-xs font-sans">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
           <span className="text-slate-300">
-            Carbon Liability: <strong className="text-white">€{euEtsCostPerHour.toFixed(1)}/hr</strong>
+            {t.liab}: <strong className="text-white font-mono ml-1">€{formatNumber(euEtsCostPerHour, language, false)}/hr</strong>
           </span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-violet-400 shadow-[0_0_8px_#c084fc]" />
           <span className="text-slate-300">
-            Specific Air Range: <strong className="text-white">0.184 nm/kg</strong>
+            {t.sar}: <strong className="text-white font-mono ml-1">0.184 nm/kg</strong>
           </span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-sky-400 shadow-[0_0_8px_#38bdf8]" />
           <span className="text-slate-300">
-            CO₂ Intensity: <strong className="text-white">{(co2PerHourTons).toFixed(2)} tons/hr</strong>
+            {t.int}: <strong className="text-white font-mono ml-1">{formatNumber(co2PerHourTons, language, false)} tons/hr</strong>
           </span>
         </div>
       </div>

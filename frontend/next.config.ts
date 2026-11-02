@@ -10,6 +10,29 @@ const nextConfig: NextConfig = {
     "localhost",
     "127.0.0.1",
   ],
+  async rewrites() {
+    if (process.env.NODE_ENV === "development") {
+      return [
+        {
+          source: "/api/flights/:path*",
+          destination: "http://127.0.0.1:8000/api/flights/:path*",
+        },
+        {
+          source: "/api/flight/:path*",
+          destination: "http://127.0.0.1:8000/api/flight/:path*",
+        },
+        {
+          source: "/api/random-flight",
+          destination: "http://127.0.0.1:8000/api/random-flight",
+        },
+        {
+          source: "/api/telemetry/:path*",
+          destination: "http://127.0.0.1:8000/api/telemetry/:path*",
+        },
+      ];
+    }
+    return [];
+  },
 };
 
 export default nextConfig;
