@@ -1,7 +1,7 @@
 "use client";
 
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { Fuel, TrendingUp, DollarSign, Gauge, Flame, Sparkles } from "lucide-react";
+import { Flame } from "lucide-react";
 import { FuelMetrics, FlightData } from "../types";
 
 interface FuelProps {
@@ -9,6 +9,7 @@ interface FuelProps {
   fuelMetrics: FuelMetrics;
   isMetric?: boolean;
   theme?: "glass" | "obsidian";
+  language?: string;
 }
 
 export default function FuelStreamgraph({
@@ -50,7 +51,6 @@ export default function FuelStreamgraph({
           : "obsidian-panel rounded-2xl"
       }`}
     >
-      {/* Header and KPI Badges */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <div>
           <div className="flex items-center gap-2.5">
@@ -79,7 +79,6 @@ export default function FuelStreamgraph({
           </div>
         </div>
 
-        {/* 4 Glowing Mini KPI Pills */}
         <div className="flex items-center gap-3">
           <div
             className={`px-3.5 py-1.5 rounded-xl border transition-all ${
@@ -140,7 +139,6 @@ export default function FuelStreamgraph({
         </div>
       </div>
 
-      {/* Main Multi-Layer Streamgraph */}
       <div className="w-full h-[320px] relative">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={streamData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
@@ -246,7 +244,6 @@ export default function FuelStreamgraph({
         </ResponsiveContainer>
       </div>
 
-      {/* Legend Footer */}
       <div className="flex flex-wrap items-center justify-center gap-6 pt-3 border-t border-white/10 text-xs font-mono">
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded-full bg-violet-400 shadow-[0_0_8px_#c084fc]" />

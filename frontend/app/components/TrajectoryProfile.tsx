@@ -1,13 +1,14 @@
 "use client";
 
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { ArrowUpRight, Compass, ShieldAlert, CheckCircle2, TrendingUp, Layers } from "lucide-react";
+import { ShieldAlert, CheckCircle2, Layers } from "lucide-react";
 import { FlightData } from "../types";
 
 interface TrajectoryProps {
   telemetry: FlightData;
   isMetric: boolean;
   theme?: "glass" | "obsidian";
+  language?: string;
 }
 
 export default function TrajectoryProfile({ telemetry, isMetric, theme = "glass" }: TrajectoryProps) {
@@ -66,7 +67,6 @@ export default function TrajectoryProfile({ telemetry, isMetric, theme = "glass"
           </div>
         </div>
 
-        {/* Status Callout Badge */}
         <div
           className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-mono font-bold ${
             isSuboptimal
@@ -88,7 +88,6 @@ export default function TrajectoryProfile({ telemetry, isMetric, theme = "glass"
         </div>
       </div>
 
-      {/* Main Trajectory Chart */}
       <div className="w-full h-[320px] relative">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={profileData} margin={{ top: 15, right: 20, left: 10, bottom: 0 }}>
@@ -153,7 +152,6 @@ export default function TrajectoryProfile({ telemetry, isMetric, theme = "glass"
         </ResponsiveContainer>
       </div>
 
-      {/* Trajectory Insights Footer */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-white/10 text-xs">
         <div
           className={`p-3 rounded-xl border transition-all ${
